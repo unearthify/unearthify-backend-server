@@ -77,6 +77,7 @@ const reject = async (req, res) => {
     }
 
     artist.status = "rejected";
+    artist.rejectionReason = reason || "No reason provided";
     await artist.save();
 
     // 🔥 SEND EMAIL
@@ -95,7 +96,7 @@ const reject = async (req, res) => {
         specialization: artist.specialization,
         experience: artist.experience,
         about: artist.about,
-        reason: reason || "Your submission did not meet our criteria",
+        reason: artist.rejectionReason || "Your submission did not meet our criteria",
       },
     });
 

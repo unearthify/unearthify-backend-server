@@ -60,6 +60,9 @@ const ArtistSubmissionSchema = new mongoose.Schema(
             enum: ["pending", "approved", "rejected"],
             default: "pending",
         },
+        rejectionReason: {
+            type: String,
+        },
         submittedBy: {
             type: mongoose.Schema.Types.ObjectId,
             ref: "User",

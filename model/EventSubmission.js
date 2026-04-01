@@ -28,6 +28,9 @@ const EventSubmissionSchema = new mongoose.Schema({
     enum: ["pending", "approved", "rejected"],
     default: "pending",
   },
+  rejectionReason: {
+    type: String,
+  },
 
   isDeleted: {
     type: Boolean,

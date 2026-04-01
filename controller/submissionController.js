@@ -30,7 +30,7 @@ const createSubmission = async (req, res) => {
       imageId: mainImg?.public_id,
       submittedBy: req.user?._id || null,
     });
-    
+
     await submission.populate("category", "name");
 
     await sendEmailWithTemplate({
@@ -319,6 +319,7 @@ const rejectSubmission = async (req, res) => {
     }
 
     submission.status = "rejected";
+    submission.rejectionReason = reason || "No reason provided";
     await submission.save();
 
     await sendEmailWithTemplate({
@@ -334,7 +335,7 @@ const rejectSubmission = async (req, res) => {
         artTypeName: submission.artTypeName,
         location: `${submission.city}, ${submission.state}`,
         description: submission.bio,
-        reason: reason || "Your submission did not meet our criteria",
+        reason: submission.rejectionReason || "Your submission did not meet our criteria",
       },
     });
 
@@ -496,6 +497,43 @@ const updateSubmission = async (req, res) => {
   }
 };
 
+const remindSubmission = async (req, res) => {
+  try {
+    const submission = await ArtistSubmission.findById(req.params.id);
+
+    if (!submission) {
+      return res.status(404).json({ message: "Submission not found" });
+    }
+
+    if (submission.status !== "pending") {
+      return res.status(400).json({ message: "Reminder only allowed for pending submissions" });
+    }
+
+    await sendEmailWithTemplate({
+      type: "ARTIST_SUBMISSION_REMINDER",
+      role: "admin",
+      to: process.env.ADMIN_EMAIL,
+      subject: "Reminder: Artist Submission Still Pending",
+      data: {
+        name: submission.name,
+        email: submission.email,
+        phone: submission.phone,
+        artTypeName: submission.artTypeName,
+        location: `${submission.city}, ${submission.state}`,
+        description: submission.bio,
+        submittedAt: new Date(submission.createdAt).toLocaleDateString("en-IN", {
+          day: "numeric", month: "long", year: "numeric",
+        }),
+      },
+    });
+
+    res.json({ message: "Reminder sent to admin" });
+  } catch (error) {
+    console.error("REMIND ERROR:", error);
+    res.status(500).json({ message: error.message });
+  }
+};
+
 module.exports = {
   createSubmission,
   createBulkSubmissions,
@@ -509,5 +547,5 @@ module.exports = {
   permanentDeleteSubmission,
   getMySubmissions,
   updateSubmission,
-
+  remindSubmission
 };

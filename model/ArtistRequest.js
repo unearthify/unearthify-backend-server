@@ -20,6 +20,9 @@ const artistRequestSchema = new mongoose.Schema({
     enum: ["pending", "approved", "rejected"],
     default: "pending",
   },
+  rejectionReason: {
+    type: String,
+  },
 }, { timestamps: true });
 
 module.exports = mongoose.model("ArtistRequest", artistRequestSchema);

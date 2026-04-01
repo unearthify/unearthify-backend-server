@@ -12,7 +12,8 @@ const {
   recoverSubmission,
   permanentDeleteSubmission,
   getMySubmissions,
-  updateSubmission, // ← add this
+  updateSubmission,
+  remindSubmission
 } = require("../controller/submissionController");
 
 const { protectRoute, restrictTo } = require("../middleware/authMiddleware");
@@ -103,6 +104,12 @@ router.delete(
   protectRoute,
   restrictTo("admin", "artist"),
   permanentDeleteSubmission
+);
+
+router.post(
+  "/artist-submissions/:id/remind",
+  protectRoute,
+  remindSubmission
 );
 
 module.exports = router;

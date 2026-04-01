@@ -6,48 +6,26 @@ const sendEmailWithTemplate = require("../utils/sendEmailWithTemplate");
 
 const DEFAULT_EVENT_IMAGE = "https://res.cloudinary.com/ddni4sjyo/image/upload/v1770180830/default%20image/person_kjmhx8.jpg";
 
-// GET ALL — admin
-const getAllEventSubmissions = async (req, res) => {
+// CREATE — artist submits, goes to pending
+const createSubmission = async (req, res) => {
   try {
-    const filter = { isDeleted: { $ne: true } };
-    if (req.query.status) filter.status = req.query.status;
-    const data = await EventSubmission.find(filter).sort({ createdAt: -1 });
-    res.json({ data });
-  } catch (err) {
-    res.status(500).json({ message: err.message });
-  }
-};
+    const {
+      title, description, date, location,
+      categories, recurrence, visibleFrom,
+    } = req.body;
 
-// GET MY — logged in user
-const getMyEventSubmissions = async (req, res) => {
-  try {
-    const data = await EventSubmission.find({
-      submittedBy: req.user._id,
-      isDeleted: { $ne: true },
-    }).sort({ createdAt: -1 });
-    res.json({ data });
-  } catch (err) {
-    res.status(500).json({ message: err.message });
-  }
-};
-
-// CREATE — logged in user
-const createEventSubmission = async (req, res) => {
-  try {
-    let imageUrl = DEFAULT_EVENT_IMAGE;
-    let imageId = null;
+    let mainImg = null;
 
     if (req.file) {
-      const uploaded = await uploadToCloudinary(req.file.buffer, "event_submissions");
-      imageUrl = uploaded.secure_url;
-      imageId = uploaded.public_id;
+      mainImg = await uploadToCloudinary(req.file.buffer, "event_submissions");
     }
 
     const submission = await EventSubmission.create({
-      ...req.body,
-      image: imageUrl,
-      imageId,
-      submittedBy: req.user._id,
+      title, description, date, location,
+      categories, recurrence, visibleFrom,
+      image: mainImg?.secure_url || DEFAULT_EVENT_IMAGE,
+      imageId: mainImg?.public_id || null,
+      submittedBy: req.user?._id || null,
       status: "pending",
     });
 
@@ -62,91 +40,80 @@ const createEventSubmission = async (req, res) => {
         category: submission.categories,
         location: submission.location,
         date: submission.date,
-        recurrence: submission.recurrence,
-        visibleFrom: submission.visibleFrom,
       },
     });
 
-    res.status(201).json({ message: "Event submitted for review", data: submission });
+    res.status(201).json({
+      message: "Submitted for admin review",
+      data: submission,
+    });
+  } catch (error) {
+    console.error("SUBMISSION ERROR:", error);
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// GET MY — logged in artist
+const getMySubmissions = async (req, res) => {
+  try {
+    const data = await EventSubmission.find({
+      submittedBy: req.user._id,
+      isDeleted: { $ne: true },
+    }).sort({ createdAt: -1 });
+
+    res.json({ data });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
 };
 
-// CREATE ADMIN SUBMISSION
-const createAdminEventSubmission = async (req, res) => {
+// GET ALL — admin
+const getAllSubmissions = async (req, res) => {
   try {
-    let imageUrl = DEFAULT_EVENT_IMAGE;
-    let imageId = null;
+    const filter = {
+      isDeleted: { $ne: true },
+    };
 
-    if (req.file) {
-      const uploaded = await uploadToCloudinary(
-        req.file.buffer,
-        "event_submissions"
-      );
-      imageUrl = uploaded.secure_url;
-      imageId = uploaded.public_id;
+    if (req.query.status) {
+      filter.status = req.query.status;
     }
 
-    // ✅ Step 1: Create submission as approved (like artist flow)
-    const submission = await EventSubmission.create({
-      title: req.body.title,
-      description: req.body.description,
-      date: req.body.date,
-      location: req.body.location,
-      categories: req.body.categories,
-      recurrence: req.body.recurrence || "none",
-      visibleFrom: req.body.visibleFrom || new Date(),
-      image: imageUrl,
-      imageId,
-      status: "approved",
-      isDeleted: false,
-    });
+    const data = await EventSubmission.find(filter).sort({ createdAt: -1 });
 
-    // ✅ Step 2: Create linked event immediately
-    const event = await Event.create({
-      title: submission.title,
-      description: submission.description,
-      date: submission.date,
-      location: submission.location,
-      categories: submission.categories,
-      recurrence: submission.recurrence,
-      visibleFrom: submission.visibleFrom,
-      image: submission.image,
-      imageId: submission.imageId,
-      createdFromSubmission: submission._id,
-      isDeleted: false,
-    });
-
-    // ✅ Step 3: Link back
-    submission.approvedEventId = event._id;
-    await submission.save();
-
-    res.status(201).json({
-      message: "Event created successfully",
-      data: event,
-    });
+    res.json({ data });
   } catch (err) {
-    console.error("ADMIN EVENT SUBMISSION ERROR:", err);
     res.status(500).json({ message: err.message });
   }
 };
 
-// APPROVE
-const approveEvent = async (req, res) => {
+// GET DELETED
+const getDeletedSubmissions = async (req, res) => {
   try {
-    const submission = await EventSubmission.findById(req.params.id).populate("submittedBy", "email");
-    if (!submission) return res.status(404).json({ message: "Submission not found" });
+    const data = await EventSubmission.find({
+      isDeleted: true,
+    }).sort({ deletedAt: -1 });
 
-    if (submission.status === "approved") {
-      return res.json({ message: "Already approved" });
+    res.json({ data });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// APPROVE — mirrors approveSubmission exactly
+const approveSubmission = async (req, res) => {
+  try {
+    const submission = await EventSubmission.findById(req.params.id);
+
+    if (!submission) {
+      return res.status(404).json({ message: "Submission not found" });
     }
 
     let event;
 
-    // ✅ Check via approvedEventId first
+    // 1. If already linked → restore
     if (submission.approvedEventId) {
       event = await Event.findById(submission.approvedEventId);
+
       if (event) {
         event.isDeleted = false;
         event.deletedAt = null;
@@ -154,15 +121,7 @@ const approveEvent = async (req, res) => {
       }
     }
 
-    // ✅ Check via createdFromSubmission (after recover, approvedEventId is null)
-    if (!event) {
-      event = await Event.findOne({
-        createdFromSubmission: submission._id,
-        isDeleted: false,
-      });
-    }
-
-    // ✅ Create fresh event only if truly none exists
+    // 2. If no linked event → create new
     if (!event) {
       event = await Event.create({
         title: submission.title,
@@ -174,44 +133,51 @@ const approveEvent = async (req, res) => {
         visibleFrom: submission.visibleFrom || new Date(),
         image: submission.image,
         imageId: submission.imageId,
-        createdFromSubmission: submission._id,
         isDeleted: false,
       });
     }
 
+    // 3. Link submission
     submission.approvedEventId = event._id;
     submission.status = "approved";
     await submission.save();
 
-    await sendEmailWithTemplate({
-      type: "EVENT_APPROVED",
-      role: "user",
-      to: submission.submittedBy.email,
-      subject: "Event Approved",
-      data: {
-        title: submission.title,
-        description: submission.description,
-        category: submission.categories,
-        location: submission.location,
-        date: submission.date,
-        recurrence: submission.recurrence,
-        visibleFrom: submission.visibleFrom,
-      },
-    });
+    // Send email if artist submitted
+    if (submission.submittedBy) {
+      const populated = await submission.populate("submittedBy", "email");
+      if (populated.submittedBy?.email) {
+        await sendEmailWithTemplate({
+          type: "EVENT_APPROVED",
+          role: "user",
+          to: populated.submittedBy.email,
+          subject: "Your Event Was Approved",
+          data: {
+            title: submission.title,
+            description: submission.description,
+            category: submission.categories,
+            location: submission.location,
+            date: submission.date,
+          },
+        });
+      }
+    }
 
     res.json({ message: "Event approved and visible in list" });
-  } catch (err) {
-    console.error("APPROVE EVENT ERROR:", err);
-    res.status(500).json({ message: err.message });
+  } catch (error) {
+    console.error("APPROVE ERROR:", error);
+    res.status(500).json({ message: error.message });
   }
 };
 
-// REJECT
-const rejectEvent = async (req, res) => {
+// REJECT — mirrors rejectSubmission exactly
+const rejectSubmission = async (req, res) => {
   const { reason } = req.body;
   try {
-    const submission = await EventSubmission.findById(req.params.id).populate("submittedBy", "email");
-    if (!submission) return res.status(404).json({ message: "Submission not found" });
+    const submission = await EventSubmission.findById(req.params.id);
+
+    if (!submission) {
+      return res.status(404).json({ message: "Submission not found" });
+    }
 
     if (submission.approvedEventId) {
       await Event.findByIdAndDelete(submission.approvedEventId);
@@ -219,63 +185,127 @@ const rejectEvent = async (req, res) => {
     }
 
     submission.status = "rejected";
+    submission.rejectionReason = reason || "No reason provided";
     await submission.save();
 
-    await sendEmailWithTemplate({
-      type: "EVENT_REJECTED",
-      role: "user",
-      to: submission.submittedBy.email,
-      subject: "Event Rejected",
-      data: {
-        title: submission.title,
-        description: submission.description,
-        category: submission.categories,
-        location: submission.location,
-        date: submission.date,
-        recurrence: submission.recurrence,
-        visibleFrom: submission.visibleFrom,
-        reason: reason || "Your submission did not meet our criteria",
-      },
-    });
+    // Send email if artist submitted
+    if (submission.submittedBy) {
+      const populated = await submission.populate("submittedBy", "email");
+      if (populated.submittedBy?.email) {
+        await sendEmailWithTemplate({
+          type: "EVENT_REJECTED",
+          role: "user",
+          to: populated.submittedBy.email,
+          subject: "Your Event Was Rejected",
+          data: {
+            title: submission.title,
+            description: submission.description,
+            category: submission.categories,
+            location: submission.location,
+            date: submission.date,
+            reason: submission.rejectionReason || "Your submission did not meet our criteria",
+          },
+        });
+      }
+    }
 
-    res.json({ message: "Event rejected" });
-  } catch (err) {
-    res.status(500).json({ message: err.message });
+    res.json({ message: "Submission rejected" });
+  } catch (error) {
+    console.error("REJECT ERROR:", error);
+    res.status(500).json({ message: error.message });
   }
 };
 
-// SOFT DELETE
-const deleteEventSubmission = async (req, res) => {
+// SOFT DELETE — mirrors deleteSubmission exactly
+const deleteSubmission = async (req, res) => {
   try {
     const submission = await EventSubmission.findById(req.params.id);
-    if (!submission) return res.status(404).json({ message: "Submission not found" });
 
-    // Soft delete linked event too
+    if (!submission) {
+      return res.status(404).json({ message: "Submission not found" });
+    }
+
+    // Delete linked Event also
     if (submission.approvedEventId) {
-      await Event.findByIdAndUpdate(submission.approvedEventId, {
-        isDeleted: true,
-        deletedAt: new Date(),
-      });
+      await Event.findByIdAndDelete(submission.approvedEventId);
       submission.approvedEventId = null;
     }
 
+    // Soft delete submission
     submission.isDeleted = true;
     submission.deletedAt = new Date();
     await submission.save();
 
-    res.json({ message: "Moved to deleted list" });
-  } catch (err) {
-    res.status(500).json({ message: err.message });
+    res.json({ message: "Submission and linked event deleted" });
+  } catch (error) {
+    console.error("DELETE SUBMISSION ERROR:", error);
+    res.status(500).json({ message: error.message });
   }
 };
 
-// UPDATE
-const updateEventSubmission = async (req, res) => {
+// RECOVER — mirrors recoverSubmission exactly
+const recoverSubmission = async (req, res) => {
   try {
     const submission = await EventSubmission.findById(req.params.id);
-    if (!submission) return res.status(404).json({ message: "Submission not found" });
 
-    const { title, description, date, location, categories, recurrence, visibleFrom } = req.body;
+    if (!submission) {
+      return res.status(404).json({ message: "Submission not found" });
+    }
+
+    submission.isDeleted = false;
+    submission.deletedAt = null;
+    submission.status = "pending";
+    await submission.save();
+
+    res.json({ message: "Submission recovered to pending" });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// PERMANENT DELETE — mirrors permanentDeleteSubmission exactly
+const permanentDeleteSubmission = async (req, res) => {
+  try {
+    const submission = await EventSubmission.findById(req.params.id);
+
+    if (!submission) {
+      return res.status(404).json({ message: "Submission not found" });
+    }
+
+    if (submission.imageId) {
+      try {
+        await cloudinary.uploader.destroy(submission.imageId);
+      } catch (err) {
+        console.error("Cloudinary delete failed:", err.message);
+      }
+    }
+
+    // Delete linked event also
+    if (submission.approvedEventId) {
+      await Event.findByIdAndDelete(submission.approvedEventId);
+    }
+
+    await EventSubmission.findByIdAndDelete(req.params.id);
+
+    res.json({ message: "Submission permanently deleted" });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// UPDATE — mirrors updateSubmission exactly
+const updateSubmission = async (req, res) => {
+  try {
+    const submission = await EventSubmission.findById(req.params.id);
+
+    if (!submission) {
+      return res.status(404).json({ message: "Submission not found" });
+    }
+
+    const {
+      title, description, date, location,
+      categories, recurrence, visibleFrom,
+    } = req.body;
 
     if (title) submission.title = title;
     if (description) submission.description = description;
@@ -287,7 +317,11 @@ const updateEventSubmission = async (req, res) => {
 
     if (req.file) {
       if (submission.imageId) {
-        try { await cloudinary.uploader.destroy(submission.imageId); } catch (e) { }
+        try {
+          await cloudinary.uploader.destroy(submission.imageId);
+        } catch (err) {
+          console.error("Old image delete failed:", err.message);
+        }
       }
       const uploaded = await uploadToCloudinary(req.file.buffer, "event_submissions");
       submission.image = uploaded.secure_url;
@@ -296,9 +330,10 @@ const updateEventSubmission = async (req, res) => {
 
     await submission.save();
 
-    // SYNC LINKED EVENT
+    // Sync linked Event if approved
     if (submission.approvedEventId) {
       const event = await Event.findById(submission.approvedEventId);
+
       if (event) {
         if (title) event.title = title;
         if (description) event.description = description;
@@ -307,89 +342,69 @@ const updateEventSubmission = async (req, res) => {
         if (categories) event.categories = categories;
         if (recurrence) event.recurrence = recurrence;
         if (visibleFrom) event.visibleFrom = visibleFrom;
+
         if (req.file) {
           event.image = submission.image;
           event.imageId = submission.imageId;
         }
+
         await event.save();
       }
     }
 
-    res.json({ message: "Event updated successfully", data: submission });
-  } catch (err) {
-    res.status(500).json({ message: err.message });
+    res.json({ message: "Submission updated successfully", data: submission });
+  } catch (error) {
+    console.error("UPDATE SUBMISSION ERROR:", error);
+    res.status(500).json({ message: error.message });
   }
 };
 
-// GET DELETED
-const getDeletedEventSubmissions = async (req, res) => {
-  try {
-    const data = await EventSubmission.find({ isDeleted: true }).sort({ deletedAt: -1 });
-    res.json({ data });
-  } catch (err) {
-    res.status(500).json({ message: err.message });
-  }
-};
-
-// RECOVER
-const recoverEventSubmission = async (req, res) => {
+const remindSubmission = async (req, res) => {
   try {
     const submission = await EventSubmission.findById(req.params.id);
-    if (!submission) return res.status(404).json({ message: "Submission not found" });
 
-    if (submission.approvedEventId) {
-      await Event.findByIdAndDelete(submission.approvedEventId);
-      submission.approvedEventId = null;
+    if (!submission) {
+      return res.status(404).json({ message: "Submission not found" });
     }
 
-    submission.isDeleted = false;
-    submission.deletedAt = null;
-    submission.status = "pending";
-    await submission.save();
-
-    res.json({ message: "Submission recovered to pending" });
-  } catch (err) {
-    res.status(500).json({ message: err.message });
-  }
-};
-
-// PERMANENT DELETE
-const permanentDeleteEventSubmission = async (req, res) => {
-  try {
-    const submission = await EventSubmission.findById(req.params.id);
-    if (!submission) return res.status(404).json({ message: "Submission not found" });
-
-    if (submission.approvedEventId) {
-      const event = await Event.findById(submission.approvedEventId);
-      if (event) {
-        if (event.imageId) {
-          try { await cloudinary.uploader.destroy(event.imageId); } catch (e) { }
-        }
-        await Event.findByIdAndDelete(submission.approvedEventId);
-      }
+    if (submission.status !== "pending") {
+      return res.status(400).json({ message: "Reminder only allowed for pending submissions" });
     }
 
-    if (submission.imageId) {
-      try { await cloudinary.uploader.destroy(submission.imageId); } catch (e) { }
-    }
+    await sendEmailWithTemplate({
+      type: "EVENT_SUBMISSION_REMINDER",
+      role: "admin",
+      to: process.env.ADMIN_EMAIL,
+      subject: "Reminder: Event Submission Still Pending",
+      data: {
+        title: submission.title,
+        description: submission.description,
+        category: submission.categories,
+        location: submission.location,
+        date: submission.date,
+        submittedAt: new Date(submission.createdAt).toLocaleDateString("en-IN", {
+          day: "numeric", month: "long", year: "numeric",
+        }),
+      },
+    });
 
-    await EventSubmission.findByIdAndDelete(req.params.id);
-    res.json({ message: "Permanently deleted" });
-  } catch (err) {
-    res.status(500).json({ message: err.message });
+    res.json({ message: "Reminder sent to admin" });
+  } catch (error) {
+    console.error("REMIND ERROR:", error);
+    res.status(500).json({ message: error.message });
   }
 };
 
 module.exports = {
-  getAllEventSubmissions,
-  getMyEventSubmissions,
-  createEventSubmission,
-  createAdminEventSubmission,
-  approveEvent,
-  rejectEvent,
-  deleteEventSubmission,
-  updateEventSubmission,
-  getDeletedEventSubmissions,
-  recoverEventSubmission,
-  permanentDeleteEventSubmission,
+  createSubmission,
+  getAllSubmissions,
+  approveSubmission,
+  rejectSubmission,
+  deleteSubmission,
+  getDeletedSubmissions,
+  recoverSubmission,
+  permanentDeleteSubmission,
+  getMySubmissions,
+  updateSubmission,
+  remindSubmission
 };

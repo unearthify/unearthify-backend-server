@@ -6,7 +6,7 @@ const {
   getEventById,
   createEvent,
   updateEventById,
-  deleteEventById,
+  softDeleteEvent,
   recoverEvent,
   permanentDeleteEvent,
 } = require("../controller/eventController");
@@ -39,7 +39,7 @@ router.delete(
   "/events/:id",
   protectRoute,
   restrictTo("admin"),
-  deleteEventById
+  softDeleteEvent
 );
 
 router.patch(

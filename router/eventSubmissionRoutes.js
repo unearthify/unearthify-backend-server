@@ -1,105 +1,40 @@
 const express = require("express");
 const router = express.Router();
-const {
-  getAllEventSubmissions,
-  getMyEventSubmissions,
-  createEventSubmission,
-  createAdminEventSubmission,
-  approveEvent,
-  rejectEvent,
-  deleteEventSubmission,
-  updateEventSubmission,
-  getDeletedEventSubmissions,
-  recoverEventSubmission,
-  permanentDeleteEventSubmission,
-} = require("../controller/eventSubmissionController");
-
 const { protectRoute, restrictTo } = require("../middleware/authMiddleware");
 const upload = require("../middleware/upload");
 
-// ── Static routes FIRST ──
-router.get(
-  "/event-submissions/my",
-  protectRoute,
-  getMyEventSubmissions
-);
+const {
+  createSubmission,
+  getAllSubmissions,
+  approveSubmission,
+  rejectSubmission,
+  deleteSubmission,
+  getDeletedSubmissions,
+  recoverSubmission,
+  permanentDeleteSubmission,
+  getMySubmissions,
+  updateSubmission,
+  remindSubmission
+} = require("../controller/eventSubmissionController");
 
-router.get(
-  "/event-submissions/deleted",
-  protectRoute,
-  restrictTo("admin"),
-  getDeletedEventSubmissions
-);
+// Static routes first
+router.get("/event-submissions/my", protectRoute, getMySubmissions);
+router.get("/event-submissions/deleted", protectRoute, restrictTo("admin"), getDeletedSubmissions);
+router.get("/event-submissions/all", protectRoute, restrictTo("admin"), getAllSubmissions);
+router.post("/event-submissions", protectRoute, upload.single("image"), createSubmission);
+
+// Dynamic /:id routes after
+router.patch("/event-submissions/:id/approve", protectRoute, restrictTo("admin"), approveSubmission);
+router.patch("/event-submissions/:id/reject", protectRoute, restrictTo("admin"), rejectSubmission);
+router.patch("/event-submissions/:id/soft-delete", protectRoute, restrictTo("admin"), deleteSubmission);
+router.patch("/event-submissions/:id/update", protectRoute, upload.single("image"), updateSubmission);
+router.patch("/event-submissions/:id/recover", protectRoute, restrictTo("admin"), recoverSubmission);
+router.delete("/event-submissions/:id/permanent", protectRoute, restrictTo("admin", "artist"), permanentDeleteSubmission);
 
 router.post(
-  "/event-submissions/admin",
+  "/event-submissions/:id/remind",
   protectRoute,
-  restrictTo("admin"),
-  upload.single("image"),
-  createAdminEventSubmission
-);
-
-router.get(
-  "/event-submissions/all",
-  protectRoute,
-  restrictTo("admin"),
-  getAllEventSubmissions
-);
-
-router.post(
-  "/event-submissions",
-  protectRoute,
-  upload.single("image"),
-  createEventSubmission
-);
-
-router.get(
-  "/event-submissions",
-  protectRoute,
-  getMyEventSubmissions
-);
-
-// ── Dynamic /:id routes AFTER ──
-router.patch(
-  "/event-submissions/:id/approve",
-  protectRoute,
-  restrictTo("admin"),
-  approveEvent
-);
-
-router.patch(
-  "/event-submissions/:id/reject",
-  protectRoute,
-  restrictTo("admin"),
-  rejectEvent
-);
-
-router.patch(
-  "/event-submissions/:id/soft-delete",
-  protectRoute,
-  restrictTo("admin"),
-  deleteEventSubmission
-);
-
-router.patch(
-  "/event-submissions/:id/update",
-  protectRoute,
-  upload.single("image"),
-  updateEventSubmission
-);
-
-router.patch(
-  "/event-submissions/:id/recover",
-  protectRoute,
-  restrictTo("admin"),
-  recoverEventSubmission
-);
-
-router.delete(
-  "/event-submissions/:id/permanent",
-  protectRoute,
-  restrictTo("admin", "artist"),
-  permanentDeleteEventSubmission
+  remindSubmission
 );
 
 module.exports = router;
