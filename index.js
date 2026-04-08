@@ -40,9 +40,12 @@ app.use(express.urlencoded({ extended: true }));
 database();
 
 // Set up CORS to allow requests from the frontend domain
-const allowedOrigins = process.env.REACT_APP_API_BASE_URL
-  ? process.env.REACT_APP_API_BASE_URL.split(",").map((url) => url.trim())
-  : ["http://localhost:3000"];
+const allowedOrigins = [
+  "https://unearthify.com",
+  "https://admin.unearthify.com",
+  "https://unearthify-admin-sooty.vercel.app",
+  "https://unearthify-artistry-xi.vercel.app"
+];
 
 app.use(
   cors({
