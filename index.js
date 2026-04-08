@@ -32,13 +32,6 @@ const eventSubmissionRoutes = require("./router/eventSubmissionRoutes");
 
 const app = express();
 
-// Middleware to parse JSON bodies
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
-
-// Initialize database connection
-database();
-
 // Set up CORS to allow requests from the frontend domain
 const allowedOrigins = [
   "https://unearthify.com",
@@ -62,6 +55,16 @@ app.use(
     credentials: true,
   })
 );
+
+// Handle preflight requests explicitly
+app.options("*", cors());
+
+// Middleware to parse JSON bodies
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+
+// Initialize database connection
+database();
 
 // Health check route
 app.get("/", (req, res) => {
