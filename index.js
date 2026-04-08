@@ -35,23 +35,20 @@ const app = express();
 // Set up CORS to allow requests from the frontend domain
 const allowedOrigins = [
   "https://unearthify.com",
-  "https://admin.unearthify.com",
-  "https://unearthify-admin-sooty.vercel.app",
-  "https://unearthify-artistry-xi.vercel.app"
+  "https://admin.unearthify.com"
 ];
-
+ 
 app.use(
   cors({
-    origin: (origin, callback) => {
-      // Allow requests with no origin (like mobile apps or curl requests)
+    origin: function (origin, callback) {
       if (!origin) return callback(null, true);
-      if (allowedOrigins.indexOf(origin) !== -1) {
-        callback(null, true);
+ 
+      if (allowedOrigins.includes(origin)) {
+        return callback(null, origin);
       } else {
-        callback(new Error("Not allowed by CORS"));
+        return callback(new Error("Not allowed by CORS"));
       }
     },
-    methods: ["GET", "POST", "PUT", "DELETE", "PATCH"],
     credentials: true,
   })
 );
