@@ -35,7 +35,9 @@ const app = express();
 // Set up CORS to allow requests from the frontend domain
 const allowedOrigins = [
   "https://unearthify.com",
-  "https://admin.unearthify.com"
+  "https://admin.unearthify.com",
+  "https://unearthify-admin-sooty.vercel.app",
+  "https://unearthify-artistry-xi.vercel.app"
 ];
  
 app.use(
