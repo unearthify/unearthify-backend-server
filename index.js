@@ -34,15 +34,17 @@ const app = express();
 
 // Set up CORS to allow requests from the frontend domain
 const allowedOrigins = [
-  "https://unearthify.com",
-  "https://admin.unearthify.com",
-  "https://unearthify-admin-sooty.vercel.app",
-  "https://unearthify-artistry-xi.vercel.app"
+  // "https://unearthify.com",
+  // "https://admin.unearthify.com",
+  // "https://unearthify-admin-sooty.vercel.app",
+  // "https://unearthify-artistry-xi.vercel.app"
+  "*"
 ];
  
 app.use(
   cors({
     origin: function (origin, callback) {
+      console.log('Incoming origin:', origin);
       if (!origin) return callback(null, true);
  
       if (allowedOrigins.includes(origin)) {
@@ -56,7 +58,7 @@ app.use(
   })
 );
 
-app.options(/(.*)/, cors());
+// app.options(/(.*)/, cors());
 
 // Middleware to parse JSON bodies
 app.use(express.json());
