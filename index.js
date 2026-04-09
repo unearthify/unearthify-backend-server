@@ -71,6 +71,11 @@ app.use(
     credentials: true,
   })
 );
+
+app.use((req, res, next) => {
+  res.setHeader("Cache-Control", "no-store");
+  next();
+});
  
 // Health check route
 app.get("/", (req, res) => {
