@@ -45,14 +45,14 @@ app.use(
   cors({
     origin: function (origin, callback) {
       console.log('Incoming origin:', origin);
-      if (!origin) return callback(null, true);
+      // if (!origin) return callback(null, true);
  
-      if (allowedOrigins.includes(origin)) {
-        // return callback(null, origin);
-        return callback(null, true);
-      } else {
-        return callback(new Error("Not allowed by CORS"));
-      }
+      // if (allowedOrigins.includes(origin)) {
+      //   // return callback(null, origin);
+        callback(null, true);
+      // } else {
+      //   return callback(new Error("Not allowed by CORS"));
+      // }
     },
     credentials: true,
   })
