@@ -43,37 +43,37 @@ database();
 const allowedOrigins = process.env.REACT_APP_API_BASE_URL
   ? process.env.REACT_APP_API_BASE_URL.split(",").map((url) => url.trim())
   : [
+      "http://localhost:3000",
       "http://localhost:5173",
       "http://localhost:8080",
       "https://unearthify.com",
       "https://admin.unearthify.com",
     ];
  
-app.use(
-  cors({
-    origin: function (origin, callback) {
-      // Allow requests with no origin (like mobile apps or curl requests)
-      if (!origin) return callback(null, true);
- 
-      // Check if the origin is in the allowed list or is a subdomain of unearthify.com
-      const isAllowed = allowedOrigins.includes(origin) ||
-                       origin.endsWith(".unearthify.com") ||
-                       origin === "https://unearthify.com";
- 
-      if (isAllowed) {
-        callback(null, true);
-      } else {
-        console.log("Origin blocked by CORS:", origin);
-        callback(new Error("Not allowed by CORS"));
-      }
-    },
-    methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
-    credentials: true,
-  })
-);
-
+// Manual CORS middleware for maximum control and reliability on Vercel
 app.use((req, res, next) => {
-  res.setHeader("Cache-Control", "no-store");
+  const origin = req.headers.origin;
+ 
+  // Check if the origin is allowed (subdomains of unearthify.com or local dev)
+  const isAllowed = !origin ||
+                   allowedOrigins.includes(origin) ||
+                   origin.endsWith(".unearthify.com") ||
+                   origin === "https://unearthify.com";
+ 
+  if (isAllowed) {
+    // If the origin is allowed, echo it back in the Access-Control-Allow-Origin header
+    res.setHeader('Access-Control-Allow-Origin', origin || '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
+    res.setHeader('Access-Control-Allow-Credentials', 'true');
+    // Debug header to verify this specific code is running
+    res.setHeader('X-Backend-Version', '1.0.1');
+  }
+ 
+  // Handle preflight requests
+  if (req.method === 'OPTIONS') {
+    return res.sendStatus(200);
+  }
   next();
 });
  
