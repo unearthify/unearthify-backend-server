@@ -46,7 +46,8 @@ app.use(
       if (!origin) return callback(null, true);
  
       if (allowedOrigins.includes(origin)) {
-        return callback(null, origin);
+        // return callback(null, origin);
+        return callback(null, true);
       } else {
         return callback(new Error("Not allowed by CORS"));
       }
@@ -59,6 +60,7 @@ app.options(/(.*)/, cors());
 
 // Middleware to parse JSON bodies
 app.use(express.json());
+
 app.use(express.urlencoded({ extended: true }));
 
 // Initialize database connection
