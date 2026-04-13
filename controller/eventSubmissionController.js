@@ -53,6 +53,77 @@ const createSubmission = async (req, res) => {
   }
 };
 
+const createBulkEventSubmissions = async (req, res) => {
+  try {
+    if (!req.body.events) {
+      return res.status(400).json({ message: "Events payload missing" });
+    }
+
+    let eventsPayload;
+
+    try {
+      eventsPayload =
+        typeof req.body.events === "string"
+          ? JSON.parse(req.body.events)
+          : req.body.events;
+    } catch (err) {
+      return res.status(400).json({ message: "Invalid events JSON" });
+    }
+
+    if (!Array.isArray(eventsPayload) || eventsPayload.length === 0) {
+      return res.status(400).json({ message: "Invalid events data" });
+    }
+
+    let uploadedFiles = [];
+
+    if (req.files?.image) {
+      uploadedFiles = req.files.image;
+    }
+
+    const uploadPromises = eventsPayload.map(async (event, i) => {
+      let imageUrl = DEFAULT_EVENT_IMAGE; // define this constant like you did for artists
+      let imageId = null;
+
+      const file = uploadedFiles[i];
+
+      if (file) {
+        const uploaded = await uploadToCloudinary(
+          file.buffer,
+          "event_submissions"
+        );
+        imageUrl = uploaded.secure_url;
+        imageId = uploaded.public_id;
+      }
+
+      return {
+        title: event.title,
+        description: event.description,
+        date: event.date,
+        visibleFrom: event.visibleFrom || event.date,
+        location: event.location,
+        categories: event.categories,
+        recurrence: event.recurrence || "none",
+        image: imageUrl,
+        imageId: imageId,
+        status: "pending",
+      };
+    });
+
+    const preparedEvents = await Promise.all(uploadPromises);
+
+    const submissions = await EventSubmission.insertMany(preparedEvents);
+
+    res.status(201).json({
+      message: "Bulk event submissions created",
+      count: submissions.length,
+      data: submissions,
+    });
+  } catch (error) {
+    console.error("BULK EVENT SUBMISSION ERROR:", error);
+    res.status(500).json({ message: error.message });
+  }
+};
+
 // GET MY — logged in artist
 const getMySubmissions = async (req, res) => {
   try {
@@ -406,5 +477,6 @@ module.exports = {
   permanentDeleteSubmission,
   getMySubmissions,
   updateSubmission,
-  remindSubmission
+  remindSubmission,
+  createBulkEventSubmissions
 };

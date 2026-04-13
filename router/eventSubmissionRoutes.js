@@ -14,7 +14,8 @@ const {
   permanentDeleteSubmission,
   getMySubmissions,
   updateSubmission,
-  remindSubmission
+  remindSubmission,
+  createBulkEventSubmissions
 } = require("../controller/eventSubmissionController");
 
 // Static routes first
@@ -35,6 +36,12 @@ router.post(
   "/event-submissions/:id/remind",
   protectRoute,
   remindSubmission
+);
+
+router.post(
+  "/event-submissions/bulk",
+  upload.fields([{ name: "image", maxCount: 10 }]),
+  createBulkEventSubmissions
 );
 
 module.exports = router;
